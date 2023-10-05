@@ -1,0 +1,8 @@
+abc
+tnt
+fox_news
+cbs
+espn
+msnbc
+cnn
+tv

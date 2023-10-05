@@ -145,20 +145,35 @@ def addExportLayerToCoreml(builder,featureMapDimensions,strides,anchorGrid,numbe
 
         # input: (1, 3, nC, nC, 85), output: (3 * nc^2, 85)
         builder.add_flatten_to_2d(
-            name=f"flatten_confidence_{outputName}", input_name=f"{outputName}_raw_confidence", output_name=f"{outputName}_flatten_raw_confidence", axis=-1)
+            name=f"flatten_object_confidence_{outputName}", input_name=f"{outputName}_object_confidence", output_name=f"{outputName}_flatten_object_confidence", axis=-1)
+        builder.add_flatten_to_2d(
+            name=f"flatten_label_confidence_{outputName}", input_name=f"{outputName}_label_confidence", output_name=f"{outputName}_flatten_label_confidence", axis=-1)
+        # builder.add_flatten_to_2d(
+        #     name=f"flatten_confidence_{outputName}", input_name=f"{outputName}_raw_confidence", output_name=f"{outputName}_flatten_raw_confidence", axis=-1)
         builder.add_flatten_to_2d(
             name=f"flatten_coordinates_{outputName}", input_name=f"{outputName}_raw_normalized_coordinates", output_name=f"{outputName}_flatten_raw_coordinates", axis=-1)
 
-    builder.add_concat_nd(name="concat_confidence", input_names=[
-                          f"{outputName}_flatten_raw_confidence" for outputName in outputNames], output_name="raw_confidence", axis=-2)
+    builder.add_concat_nd(name="concat_object_confidence", input_names=[
+                          f"{outputName}_flatten_object_confidence" for outputName in outputNames], output_name="raw_object_confidence", axis=-2)
+    builder.add_concat_nd(name="concat_label_confidence", input_names=[
+                          f"{outputName}_flatten_label_confidence" for outputName in outputNames], output_name="raw_label_confidence", axis=-2)
+    # builder.add_concat_nd(name="concat_confidence", input_names=[
+    #                       f"{outputName}_flatten_raw_confidence" for outputName in outputNames], output_name="raw_confidence", axis=-2)
     builder.add_concat_nd(name="concat_coordinates", input_names=[
                           f"{outputName}_flatten_raw_coordinates" for outputName in outputNames], output_name="raw_coordinates", axis=-2)
 
     #builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
     #                   (25200, numberOfClassLabels), (25200, 4)])
-    builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
-                        (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),numberOfClassLabels),
-                        (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),4)])
+    print("number of class labels: ", numberOfClassLabels)
+    builder.set_output(output_names=["raw_object_confidence", "raw_label_confidence", "raw_coordinates"], output_dims=[
+        (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)),
+         1),
+        (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)),
+         numberOfClassLabels),
+        (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)), 4)])
+    # builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
+    #                     (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),numberOfClassLabels),
+    #                     (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),4)])
 
 
 def createNmsModelSpec(nnSpec,numberOfClassLabels,classLabels):
@@ -204,8 +219,8 @@ def createNmsModelSpec(nnSpec,numberOfClassLabels,classLabels):
     nms.iouThresholdInputFeatureName = "iouThreshold"
     nms.confidenceThresholdInputFeatureName = "confidenceThreshold"
     # Some good default values for the two additional inputs, can be overwritten when using the model
-    nms.iouThreshold = 0.6
-    nms.confidenceThreshold = 0.4
+    nms.iouThreshold = 0
+    nms.confidenceThreshold = 0
     nms.stringClassLabels.vector.extend(classLabels)
 
     return nmsSpec
@@ -322,26 +337,26 @@ def main():
     anchorGrid = torch.tensor(anchors).float().view(3, -1, 1, 1, 2)
 
     
-    #.ptファイルから自力でtorchに変換してmlmodelを作成するやり方
-    ###
-    #sampleInput = torch.zeros((1, 3, imgSize, imgSize))
-    #checkInputs = [(torch.rand(1, 3, imgSize, imgSize),),
+    # # .ptファイルから自力でtorchに変換してmlmodelを作成するやり方
+    # ##
+    # sampleInput = torch.zeros((1, 3, imgSize, imgSize))
+    # checkInputs = [(torch.rand(1, 3, imgSize, imgSize),),
     #               (torch.rand(1, 3, imgSize, imgSize),)]
-
-    #model = torch.load(opt.model_input_path, map_location=torch.device('cpu'))[
+    #
+    # model = torch.load(opt.model_input_path, map_location=torch.device('cpu'))[
     #    'model'].float()
-
-    #model.train()
-    #model.model[-1].export = True
-    # Dry run, necessary for correct tracing!
-    #model(sampleInput)
-
-    #ts = exportTorchscript(model, sampleInput, checkInputs,
+    #
+    # model.train()
+    # model.model[-1].export = True
+    # # Dry run, necessary for correct tracing!
+    # model(sampleInput)
+    #
+    # ts = exportTorchscript(model, sampleInput, checkInputs,
     #                       f"{opt.model_output_directory}/{opt.model_output_name}.torchscript.pt")
-
-    # Convert pytorch to raw coreml model
-    #modelSpec = convertToCoremlSpec(ts, sampleInput)
-    #addOutputMetaData(modelSpec,featureMapDimensions,outputSize)
+    #
+    # # Convert pytorch to raw coreml model
+    # modelSpec = convertToCoremlSpec(ts, sampleInput)
+    # addOutputMetaData(modelSpec,featureMapDimensions,outputSize)
 
     # Add export logic to coreml model
     #builder = ct.models.neural_network.NeuralNetworkBuilder(spec=modelSpec)
@@ -358,12 +373,15 @@ def main():
     mlmodel = ct.models.MLModel(opt.model_input_path)
     # Just run to get the mlmodel spec.
     spec = mlmodel.get_spec()
+    addOutputMetaData(spec, featureMapDimensions, outputSize)
     builder = ct.models.neural_network.NeuralNetworkBuilder(spec=spec)
-    spec.description
+    print(spec.description)
 
     # run the functions to add decode layer and NMS to the model.
     addExportLayerToCoreml(builder,featureMapDimensions,strides,anchorGrid,numberOfClassLabels,imgSize)
-    
+    new_model = ct.models.MLModel(builder.spec)
+    new_model.save("models/output/mlmodel_with_output_metadata_label_and_object_conf.mlmodel")
+
     # Create nms logic
     nmsSpec = createNmsModelSpec(builder.spec,numberOfClassLabels,classLabels)
 
