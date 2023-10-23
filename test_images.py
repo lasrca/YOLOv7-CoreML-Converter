@@ -335,9 +335,11 @@ def clip_coords(boxes, img_shape):
 
 
 def main():
-    model = load_model("models/output//yolov7_includes_nms_thresholds_0.1.mlmodel")
+    # model = load_model("models/output//yolov7_includes_nms_thresholds_0.1.mlmodel")
+    model = load_model("models/output/yolov7-iOS_8.mlmodel")
     # model = load_model("models/output/mlmodel_with_output_metadata_label_and_object_conf.mlmodel")
-
+    spec = model.get_spec()
+    print(spec.description)
     filenames = []
     results = []
     for filename in os.listdir("/Users/carlalasry/repos/yolov7/logos_annotations/dataset_tv_and_logos_13062023/val/images/"):
@@ -358,11 +360,11 @@ def main():
             #
             # print(pred)
 
-            detections = draw_bbox_image(filename, output, "test_images_mlmodel_with_nms_included_0.1_0.1/")
+            detections = draw_bbox_image(filename, output, "test_images_mlmodel_with_nms_included_0.1_0.1_quant_fp8/")
             filenames.append(filename)
             results.append(detections)
     df_results = pd.DataFrame.from_dict({"filename": filenames, "results": results})
-    df_results.to_csv("results_mlmodel_includes_nms.csv")
+    df_results.to_csv("results_mlmodel_includes_nms_quant_fp8.csv")
 
 if __name__ == '__main__':
     main()

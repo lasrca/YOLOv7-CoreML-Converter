@@ -144,36 +144,36 @@ def addExportLayerToCoreml(builder,featureMapDimensions,strides,anchorGrid,numbe
                                            f"{outputName}_label_confidence", f"{outputName}_object_confidence"], output_name=f"{outputName}_raw_confidence")
 
         # input: (1, 3, nC, nC, 85), output: (3 * nc^2, 85)
-        builder.add_flatten_to_2d(
-            name=f"flatten_object_confidence_{outputName}", input_name=f"{outputName}_object_confidence", output_name=f"{outputName}_flatten_object_confidence", axis=-1)
-        builder.add_flatten_to_2d(
-            name=f"flatten_label_confidence_{outputName}", input_name=f"{outputName}_label_confidence", output_name=f"{outputName}_flatten_label_confidence", axis=-1)
         # builder.add_flatten_to_2d(
-        #     name=f"flatten_confidence_{outputName}", input_name=f"{outputName}_raw_confidence", output_name=f"{outputName}_flatten_raw_confidence", axis=-1)
+        #     name=f"flatten_object_confidence_{outputName}", input_name=f"{outputName}_object_confidence", output_name=f"{outputName}_flatten_object_confidence", axis=-1)
+        # builder.add_flatten_to_2d(
+        #     name=f"flatten_label_confidence_{outputName}", input_name=f"{outputName}_label_confidence", output_name=f"{outputName}_flatten_label_confidence", axis=-1)
+        builder.add_flatten_to_2d(
+            name=f"flatten_confidence_{outputName}", input_name=f"{outputName}_raw_confidence", output_name=f"{outputName}_flatten_raw_confidence", axis=-1)
         builder.add_flatten_to_2d(
             name=f"flatten_coordinates_{outputName}", input_name=f"{outputName}_raw_normalized_coordinates", output_name=f"{outputName}_flatten_raw_coordinates", axis=-1)
 
-    builder.add_concat_nd(name="concat_object_confidence", input_names=[
-                          f"{outputName}_flatten_object_confidence" for outputName in outputNames], output_name="raw_object_confidence", axis=-2)
-    builder.add_concat_nd(name="concat_label_confidence", input_names=[
-                          f"{outputName}_flatten_label_confidence" for outputName in outputNames], output_name="raw_label_confidence", axis=-2)
-    # builder.add_concat_nd(name="concat_confidence", input_names=[
-    #                       f"{outputName}_flatten_raw_confidence" for outputName in outputNames], output_name="raw_confidence", axis=-2)
+    # builder.add_concat_nd(name="concat_object_confidence", input_names=[
+    #                       f"{outputName}_flatten_object_confidence" for outputName in outputNames], output_name="raw_object_confidence", axis=-2)
+    # builder.add_concat_nd(name="concat_label_confidence", input_names=[
+    #                       f"{outputName}_flatten_label_confidence" for outputName in outputNames], output_name="raw_label_confidence", axis=-2)
+    builder.add_concat_nd(name="concat_confidence", input_names=[
+                          f"{outputName}_flatten_raw_confidence" for outputName in outputNames], output_name="raw_confidence", axis=-2)
     builder.add_concat_nd(name="concat_coordinates", input_names=[
                           f"{outputName}_flatten_raw_coordinates" for outputName in outputNames], output_name="raw_coordinates", axis=-2)
 
-    #builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
-    #                   (25200, numberOfClassLabels), (25200, 4)])
+    builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
+                      (25200, numberOfClassLabels), (25200, 4)])
     print("number of class labels: ", numberOfClassLabels)
-    builder.set_output(output_names=["raw_object_confidence", "raw_label_confidence", "raw_coordinates"], output_dims=[
-        (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)),
-         1),
-        (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)),
-         numberOfClassLabels),
-        (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)), 4)])
-    # builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
-    #                     (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),numberOfClassLabels),
-    #                     (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),4)])
+    # builder.set_output(output_names=["raw_object_confidence", "raw_label_confidence", "raw_coordinates"], output_dims=[
+    #     (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)),
+    #      1),
+    #     (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)),
+    #      numberOfClassLabels),
+    #     (int(3 * ((imgSize / strides[0]) ** 2 + (imgSize / strides[1]) ** 2 + (imgSize / strides[2]) ** 2)), 4)])
+    builder.set_output(output_names=["raw_confidence", "raw_coordinates"], output_dims=[
+                        (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),numberOfClassLabels),
+                        (int(3*((imgSize/strides[0])**2+(imgSize/strides[1])**2+(imgSize/strides[2])**2)),4)])
 
 
 def createNmsModelSpec(nnSpec,numberOfClassLabels,classLabels):
@@ -219,8 +219,8 @@ def createNmsModelSpec(nnSpec,numberOfClassLabels,classLabels):
     nms.iouThresholdInputFeatureName = "iouThreshold"
     nms.confidenceThresholdInputFeatureName = "confidenceThreshold"
     # Some good default values for the two additional inputs, can be overwritten when using the model
-    nms.iouThreshold = 0
-    nms.confidenceThreshold = 0
+    nms.iouThreshold = 0.1
+    nms.confidenceThreshold = 0.1
     nms.stringClassLabels.vector.extend(classLabels)
 
     return nmsSpec
@@ -297,7 +297,7 @@ def main():
                         default='yolov7-iOS', help='model output name')
     parser.add_argument('-quant','--quantize-model', action="store_true", dest="quantize",
                         help='Pass flag quantized models are needed (Only works on mac Os)')
-    parser.add_argument('-size','--imgSize', type=int, dest="imgSize",
+    parser.add_argument('-size','-- ', type=int, dest="imgSize",
                         default=640, help='trained imageSize 640, 960,.. by yolov5 model')
     parser.add_argument('-label','--labelName', type=str, dest="className",
                         default="./labels/coco.txt", help='class name .txt file')
@@ -380,7 +380,7 @@ def main():
     # run the functions to add decode layer and NMS to the model.
     addExportLayerToCoreml(builder,featureMapDimensions,strides,anchorGrid,numberOfClassLabels,imgSize)
     new_model = ct.models.MLModel(builder.spec)
-    new_model.save("models/output/mlmodel_with_output_metadata_label_and_object_conf.mlmodel")
+    # new_model.save("models/output/mlmodel_with_output_metadata_label_and_object_conf.mlmodel")
 
     # Create nms logic
     nmsSpec = createNmsModelSpec(builder.spec,numberOfClassLabels,classLabels)
